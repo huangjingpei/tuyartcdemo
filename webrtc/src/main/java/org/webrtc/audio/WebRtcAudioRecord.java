@@ -41,7 +41,7 @@ import org.webrtc.ThreadUtils;
 import org.webrtc.audio.JavaAudioDeviceModule.AudioRecordErrorCallback;
 import org.webrtc.audio.JavaAudioDeviceModule.AudioRecordStartErrorCode;
 import org.webrtc.audio.JavaAudioDeviceModule.AudioRecordStateCallback;
-import org.webrtc.audio.JavaAudioDeviceModule.SamplesReadyCallback;
+import org.webrtc.audio.JavaAudioDeviceModule.AudioRecordSamplesReadyCallback;
 
 class WebRtcAudioRecord {
   private static final String TAG = "WebRtcAudioRecordExternal";
@@ -103,7 +103,7 @@ class WebRtcAudioRecord {
 
   private final @Nullable AudioRecordErrorCallback errorCallback;
   private final @Nullable AudioRecordStateCallback stateCallback;
-  private final @Nullable SamplesReadyCallback audioSamplesReadyCallback;
+  private final @Nullable AudioRecordSamplesReadyCallback audioSamplesReadyCallback;
   private final boolean isAcousticEchoCancelerSupported;
   private final boolean isNoiseSuppressorSupported;
 
@@ -192,7 +192,7 @@ class WebRtcAudioRecord {
       AudioManager audioManager, int audioSource, int audioFormat,
       @Nullable AudioRecordErrorCallback errorCallback,
       @Nullable AudioRecordStateCallback stateCallback,
-      @Nullable SamplesReadyCallback audioSamplesReadyCallback,
+      @Nullable AudioRecordSamplesReadyCallback audioSamplesReadyCallback,
       boolean isAcousticEchoCancelerSupported, boolean isNoiseSuppressorSupported) {
     if (isAcousticEchoCancelerSupported && !WebRtcAudioEffects.isAcousticEchoCancelerSupported()) {
       throw new IllegalArgumentException("HW AEC not supported");

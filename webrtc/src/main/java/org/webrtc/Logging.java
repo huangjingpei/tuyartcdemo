@@ -108,11 +108,11 @@ public class Logging {
   // TODO(bugs.webrtc.org/8491): Remove NoSynchronizedMethodCheck suppression.
   @SuppressWarnings("NoSynchronizedMethodCheck")
   public static synchronized void enableLogToDebugOutput(Severity severity) {
-    if (loggable != null) {
-      throw new IllegalStateException(
-          "Logging to native debug output not supported while Loggable is injected. "
-          + "Delete the Loggable before calling this method.");
-    }
+//    if (loggable != null) {
+//      throw new IllegalStateException(
+//          "Logging to native debug output not supported while Loggable is injected. "
+//          + "Delete the Loggable before calling this method.");
+//    }
     nativeEnableLogToDebugOutput(severity.ordinal());
     loggingEnabled = true;
   }

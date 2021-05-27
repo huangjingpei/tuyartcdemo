@@ -53,6 +53,12 @@
             android:text="订阅内容" />
 
         <Button
+            android:id="@+id/startRecord"
+            android:layout_width="120dp"
+            android:layout_height="wrap_content"
+            android:text="开始录制" />
+
+        <Button
             android:id="@+id/switchCamera"
             android:layout_width="120dp"
             android:layout_height="wrap_content"

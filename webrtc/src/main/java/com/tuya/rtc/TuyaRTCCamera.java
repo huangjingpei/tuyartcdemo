@@ -150,6 +150,20 @@ public class TuyaRTCCamera implements TuyaRTCClient.PeerConnectionEvents {
         return false;
     }
 
+    public boolean startRecord(VideoSink sink) {
+        if ((tuyaRtcClient != null) && (connected)) {
+            return tuyaRtcClient.startRecord(sink);
+        }
+        return true;
+    }
+
+    public boolean stopRecord(VideoSink sink) {
+        if ((tuyaRtcClient != null)){
+            return tuyaRtcClient.stopRecord(sink);
+        }
+        return true;
+    }
+
     public void dispose() {
 
     }

@@ -41,7 +41,8 @@ public class JavaAudioDeviceModule implements AudioDeviceModule {
     private int audioFormat = WebRtcAudioRecord.DEFAULT_AUDIO_FORMAT;
     private AudioTrackErrorCallback audioTrackErrorCallback;
     private AudioRecordErrorCallback audioRecordErrorCallback;
-    private SamplesReadyCallback samplesReadyCallback;
+    private AudioRecordSamplesReadyCallback audioRecordSamplesReadyCallback;
+    private AudioTrackSamplesReadyCallback audioTrackSamplesReadyCallback;
     private AudioTrackStateCallback audioTrackStateCallback;
     private AudioRecordStateCallback audioRecordStateCallback;
     private boolean useHardwareAcousticEchoCanceler = isBuiltInAcousticEchoCancelerSupported();
@@ -133,10 +134,19 @@ public class JavaAudioDeviceModule implements AudioDeviceModule {
     /**
      * Set a callback to listen to the raw audio input from the AudioRecord.
      */
-    public Builder setSamplesReadyCallback(SamplesReadyCallback samplesReadyCallback) {
-      this.samplesReadyCallback = samplesReadyCallback;
+    public Builder setAudioRecordSamplesReadyCallback(AudioRecordSamplesReadyCallback samplesReadyCallback) {
+      this.audioRecordSamplesReadyCallback = samplesReadyCallback;
       return this;
     }
+
+    /**
+     * Set a callback to listen to the raw audio input from the AudioTrack.
+     */
+    public Builder setAudioTrackSamplesReadyCallback(AudioTrackSamplesReadyCallback samplesReadyCallback) {
+      this.audioTrackSamplesReadyCallback = samplesReadyCallback;
+      return this;
+    }
+
 
     /**
      * Set a callback to retrieve information from the AudioTrack on when audio starts and stop.
@@ -246,10 +256,11 @@ public class JavaAudioDeviceModule implements AudioDeviceModule {
         executor = WebRtcAudioRecord.newDefaultScheduler();
       }
       final WebRtcAudioRecord audioInput = new WebRtcAudioRecord(context, executor, audioManager,
-          audioSource, audioFormat, audioRecordErrorCallback, audioRecordStateCallback,
-          samplesReadyCallback, useHardwareAcousticEchoCanceler, useHardwareNoiseSuppressor);
+              audioSource, audioFormat, audioRecordErrorCallback, audioRecordStateCallback,
+              audioRecordSamplesReadyCallback, useHardwareAcousticEchoCanceler, useHardwareNoiseSuppressor);
       final WebRtcAudioTrack audioOutput = new WebRtcAudioTrack(context, audioManager,
-          audioAttributes, audioTrackErrorCallback, audioTrackStateCallback, useLowLatency);
+              audioAttributes, audioTrackErrorCallback, audioTrackStateCallback, audioTrackSamplesReadyCallback,
+              useLowLatency);
       return new JavaAudioDeviceModule(context, audioManager, audioInput, audioOutput,
           inputSampleRate, outputSampleRate, useStereoInput, useStereoOutput);
     }
@@ -312,8 +323,13 @@ public class JavaAudioDeviceModule implements AudioDeviceModule {
   }
 
   /** Called when new audio samples are ready. This should only be set for debug purposes */
-  public static interface SamplesReadyCallback {
+  public static interface AudioRecordSamplesReadyCallback {
     void onWebRtcAudioRecordSamplesReady(AudioSamples samples);
+  }
+
+  /** Called when new audio samples are ready. This should only be set for debug purposes */
+  public static interface AudioTrackSamplesReadyCallback {
+    void onWebRtcAudioTrackSamplesReady(AudioSamples samples);
   }
 
   /* AudioTrack */

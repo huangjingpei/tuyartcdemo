@@ -44,6 +44,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private Button sdkInitBtn;
     private Button startPreivewBtn;
     private Button subscribeTopicBtn;
+    private Button startRecorBtn;
     private Button switchCameraBtn;
 
     private CheckBox muteLocalAudiocheckbox;
@@ -60,11 +61,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     private ConcurrentHashMap<String, ViewGroup> feedWindows = new ConcurrentHashMap<>();
 
-
+    private boolean audioMuted;
+    private boolean videoMuted;
 
     private boolean isSdkInit;
     private boolean isStartPreview;
     private                  boolean         isSubscrbingTopic;
+    private boolean isStartRecord;
     private static final ExecutorService executor = Executors.newSingleThreadExecutor();
 
 
@@ -72,7 +75,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private String clientId = "jct4wjjgtppxth9vpjeq";
     private String secret  = "ns45erx7y9ut8trygwwnfu549eghrmqg";
     private String deviceId = "6ceeb5b251fb016f2aamtp";
-    private String authCode = "6d29408bfe0c1b472b48d872b52fbd14";
+    private String authCode = "beb27de47069eb5ae2bae9e1f13ce17a";
 
     private SurfaceViewRenderer localView;
 
@@ -95,6 +98,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         startPreivewBtn.setOnClickListener(this);
         subscribeTopicBtn = (Button) findViewById(R.id.subscribeTopic);
         subscribeTopicBtn.setOnClickListener(this);
+        startRecorBtn = (Button) findViewById(R.id.startRecord);
+        startRecorBtn.setOnClickListener(this);
         switchCameraBtn = (Button) findViewById(R.id.switchCamera);
         switchCameraBtn.setOnClickListener(this);
 
@@ -141,22 +146,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             TextView streamNameTV = feedWindow.findViewById(R.id.streamName_tv);
             streamNameTV.setText(streamName);
 
-
-            CheckBox muteAudioChkBox = feedWindow.findViewById(R.id.muteAudio_chkbox);
-            muteAudioChkBox.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-                @Override
-                public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-
-                }
-            });
-
-            CheckBox muteVideoChkBox = feedWindow.findViewById(R.id.muteVideo_chkbox);
-            muteVideoChkBox.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-                @Override
-                public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-
-                }
-            });
         } else {
             Log.e(TAG, "addFeedWindow fail repeat streamName = " + streamName);
         }
@@ -194,10 +183,15 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                     isStartPreview = false;
                 }
                 if (isSubscrbingTopic) {
+                    tuyaRTCEngine.stopPreview(deviceId);
                     deleteFeedWindow(deviceId);
                     subscribeTopicBtn.setText("订阅内容");
                     isSubscrbingTopic = false;
                 }
+                if (isStartRecord) {
+                    tuyaRTCEngine.stopRecord(deviceId);
+                }
+                tuyaRTCEngine.destoryRtcEngine();
                 sdkInitBtn.setText("引擎初始化");
                 isSdkInit = false;
             }
@@ -231,12 +225,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 viewRenderer.setZOrderOnTop(false);
                 viewRenderer.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FIT);
                 addFeedWindow(deviceId, viewRenderer);
-                tuyaRTCEngine.createTuyaCamera(deviceId);
-                localView.init(eglBase.getEglBaseContext(), null);
+                //localView.init(eglBase.getEglBaseContext(), null);
                 viewRenderer.init(eglBase.getEglBaseContext(), null);
                 //localSurfaceLayout.setVisibility(View.VISIBLE);
                 //localSurfaceLayout.addView(localView);
                 executor.execute(()->{
+                    tuyaRTCEngine.createTuyaCamera(deviceId);
                     tuyaRTCEngine.startPreview(deviceId, localView, viewRenderer);
                 });
                 subscribeTopicBtn.setText("退订内容");
@@ -249,13 +243,38 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 isSubscrbingTopic = false;
             }
 
-        } else if (v.getId() == R.id.switchCamera) {
+        } else if (v.getId() == R.id.startRecord) {
+            if ((tuyaRTCEngine !=  null) && (isStartRecord)) {
+                tuyaRTCEngine.startRecord(deviceId);
+                startRecorBtn.setText("停止录制");
+                isStartRecord = false;
+            } else {
+                tuyaRTCEngine.stopRecord(deviceId);
+                startRecorBtn.setText("开始录制");
+                isStartRecord = true;
+            }
         }
     }
 
     @Override
     public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+        if (buttonView.getId() == R.id.muteLocalAudio) {
+            executor.execute(() ->{
+                tuyaRTCEngine.muteAudio(deviceId, !audioMuted);
+                audioMuted = !audioMuted;
 
+                Log.e(TAG, "getRemoteAudioMute " +tuyaRTCEngine.getRemoteAudioMute(deviceId));
+            });
+        } else if (buttonView.getId() == R.id.muteLocalVideo) {
+            executor.execute(()->{
+                executor.execute(() ->{
+                    tuyaRTCEngine.muteVideo(deviceId, !videoMuted);
+                    videoMuted = !videoMuted;
+                    Log.e(TAG, "getRemoteVideoMute " +tuyaRTCEngine.getRemoteVideoMute(deviceId));
+
+                });
+            });
+        }
     }
 
 

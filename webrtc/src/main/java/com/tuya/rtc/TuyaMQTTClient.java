@@ -63,11 +63,11 @@ public class TuyaMQTTClient implements MqttCallbackExtended , IMqttActionListene
 
     @Override
     public void onSuccess(IMqttToken asyncActionToken) {
-        waitLock.lock();
+        //waitLock.lock();
         mqttConnected = true;
         subscribeToTopic();
         waitFinished.signal();
-        waitLock.unlock();
+        //waitLock.unlock();
     }
 
     @Override
@@ -184,7 +184,7 @@ public class TuyaMQTTClient implements MqttCallbackExtended , IMqttActionListene
             e.printStackTrace();
         }
         waitLock.unlock();
-
+        Log.e(TAG,"MQTT connect return.");
         return (result = mqttConnected);
     }
 
@@ -346,6 +346,9 @@ public class TuyaMQTTClient implements MqttCallbackExtended , IMqttActionListene
                         for(int i = 0; i < topics.length;i++) {
                             Log.d("MQTT", "topics " + topics[i]);
                         }
+                        waitLock.lock();
+                        waitFinished.signal();
+                        waitLock.unlock();
                         Log.d("MQTT","Subscribe success. topic:" + topic);
                     }catch (Exception e)
                     {
@@ -602,7 +605,7 @@ public class TuyaMQTTClient implements MqttCallbackExtended , IMqttActionListene
 //        return ret;
 
         uid = "ay15543724944733IyNx";
-        accessToken = "b14ad8ed2265e3a0696d110da7a33718";
+        accessToken = "c04ef4d783ef001a1f09aa0116e92a6a";
         refreshToken = "c2f658821fa48a682f560dd89cb49888";
 
         return true;

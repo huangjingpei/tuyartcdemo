@@ -9,6 +9,8 @@ import org.webrtc.DefaultVideoDecoderFactory;
 import org.webrtc.DefaultVideoEncoderFactory;
 import org.webrtc.EglBase;
 import org.webrtc.IceCandidate;
+import org.webrtc.Loggable;
+import org.webrtc.Logging;
 import org.webrtc.PeerConnectionFactory;
 import org.webrtc.SessionDescription;
 import org.webrtc.SoftwareVideoDecoderFactory;
@@ -18,6 +20,7 @@ import org.webrtc.SurfaceViewRenderer;
 import org.webrtc.VideoCapturer;
 import org.webrtc.VideoDecoderFactory;
 import org.webrtc.VideoEncoderFactory;
+import org.webrtc.VideoFrame;
 import org.webrtc.VideoSink;
 import org.webrtc.audio.AudioDeviceModule;
 import org.webrtc.audio.JavaAudioDeviceModule;
@@ -46,12 +49,12 @@ public class TuyaRTCEngine implements TuyaMQTTClient.SignalingEvents {
     private TuyaRTCEngineParameters tuyaRTCEngineParameters;
     private EglBase                 eglBase;
     private VideoCapturer           nullVideoCapturer;
-
-    private              PeerConnectionFactory factory;
+    private RecordSink            recordSink;
+    private PeerConnectionFactory factory;
+    private volatile boolean isRecording;
     private static final ExecutorService       executor = Executors.newSingleThreadExecutor();
 
     private ConcurrentHashMap<String, TuyaRTCCamera> cameraHashMap = new ConcurrentHashMap<>();
-
 
     public boolean initRtcEngine(Context appContext,
                                  EglBase eglBase,
@@ -185,6 +188,34 @@ public class TuyaRTCEngine implements TuyaMQTTClient.SignalingEvents {
         return false;
     }
 
+    private static class RecordSink implements VideoSink {
+        @Override
+        public void onFrame(VideoFrame frame) {
+            Logging.d(TAG, "RecordSink onFrame");
+        }
+    };
+
+
+    public boolean startRecord(String did) {
+        isRecording = true;
+        recordSink = new RecordSink();
+        TuyaRTCCamera camera = getTuyaCameraByDid(did);
+        if (camera != null) {
+            return camera.startRecord(recordSink);
+        }
+        return false;
+    }
+
+    public boolean stopRecord(String did) {
+        isRecording = false;
+        TuyaRTCCamera camera = getTuyaCameraByDid(did);
+        if (camera != null) {
+            return camera.stopRecord(recordSink);
+        }
+        recordSink = null;
+        return false;
+    }
+
 
     private void createPeerConnectionFactory(PeerConnectionFactory.Options options) {
         if (factory != null) {
@@ -203,6 +234,7 @@ public class TuyaRTCEngine implements TuyaMQTTClient.SignalingEvents {
                 PeerConnectionFactory.InitializationOptions.builder(appContext)
                         .setFieldTrials(fieldTrials)
                         .setEnableInternalTracer(true)
+                        .setInjectableLogger(new TuyaRTCLoggable(), Logging.Severity.LS_INFO)
                         .createInitializationOptions());
 
 
@@ -318,6 +350,15 @@ public class TuyaRTCEngine implements TuyaMQTTClient.SignalingEvents {
             }
         };
 
+        JavaAudioDeviceModule.AudioTrackSamplesReadyCallback audioTrackSamplesReadyCallback = new JavaAudioDeviceModule.AudioTrackSamplesReadyCallback() {
+            @Override
+            public void onWebRtcAudioTrackSamplesReady(JavaAudioDeviceModule.AudioSamples audioSamples) {
+                if (isRecording) {
+                    Logging.d(TAG, "recrod audio frame.");
+                }
+            }
+        };
+
 
         return JavaAudioDeviceModule.builder(appContext)
                 .setUseHardwareAcousticEchoCanceler(!tuyaRTCEngineParameters.isDisableBuiltInAEC())
@@ -326,6 +367,7 @@ public class TuyaRTCEngine implements TuyaMQTTClient.SignalingEvents {
                 .setAudioTrackErrorCallback(audioTrackErrorCallback)
                 .setAudioRecordStateCallback(audioRecordStateCallback)
                 .setAudioTrackStateCallback(audioTrackStateCallback)
+                .setAudioTrackSamplesReadyCallback(audioTrackSamplesReadyCallback)
                 .createAudioDeviceModule();
     }
 

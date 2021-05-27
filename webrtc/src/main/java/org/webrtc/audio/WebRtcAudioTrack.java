@@ -20,6 +20,8 @@ import android.os.Build;
 import android.os.Process;
 import androidx.annotation.Nullable;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
+
 import org.webrtc.CalledByNative;
 import org.webrtc.Logging;
 import org.webrtc.ThreadUtils;
@@ -84,7 +86,8 @@ class WebRtcAudioTrack {
   private int initialBufferSizeInFrames;
 
   private final @Nullable AudioTrackErrorCallback errorCallback;
-  private final @Nullable AudioTrackStateCallback stateCallback;
+  private final @Nullable AudioTrackStateCallback                    stateCallback;
+  private final @Nullable JavaAudioDeviceModule.AudioTrackSamplesReadyCallback audioSamplesReadyCallback;
 
   /**
    * Audio thread which keeps calling AudioTrack.write() to stream audio.
@@ -141,6 +144,14 @@ class WebRtcAudioTrack {
         if (useLowLatency) {
           bufferManager.maybeAdjustBufferSize(audioTrack);
         }
+
+        if (audioSamplesReadyCallback != null) {
+          byte[] data = Arrays.copyOfRange(byteBuffer.array(), byteBuffer.arrayOffset(),
+                  byteBuffer.capacity() + byteBuffer.arrayOffset());
+          audioSamplesReadyCallback.onWebRtcAudioTrackSamplesReady(
+                  new JavaAudioDeviceModule.AudioSamples(audioTrack.getAudioFormat(),
+                  audioTrack.getChannelCount(), audioTrack.getSampleRate(), data));
+        }
         // The byte buffer must be rewinded since byteBuffer.position() is
         // increased at each call to AudioTrack.write(). If we don't do this,
         // next call to AudioTrack.write() will fail.
@@ -171,18 +182,21 @@ class WebRtcAudioTrack {
   @CalledByNative
   WebRtcAudioTrack(Context context, AudioManager audioManager) {
     this(context, audioManager, null /* audioAttributes */, null /* errorCallback */,
-        null /* stateCallback */, false /* useLowLatency */);
+        null /* stateCallback */, null, false /* useLowLatency */);
   }
 
   WebRtcAudioTrack(Context context, AudioManager audioManager,
       @Nullable AudioAttributes audioAttributes, @Nullable AudioTrackErrorCallback errorCallback,
-      @Nullable AudioTrackStateCallback stateCallback, boolean useLowLatency) {
+      @Nullable AudioTrackStateCallback stateCallback,
+      @Nullable JavaAudioDeviceModule.AudioTrackSamplesReadyCallback audioSamplesReadyCallback,
+     boolean useLowLatency) {
     threadChecker.detachThread();
     this.context = context;
     this.audioManager = audioManager;
     this.audioAttributes = audioAttributes;
     this.errorCallback = errorCallback;
     this.stateCallback = stateCallback;
+    this.audioSamplesReadyCallback = audioSamplesReadyCallback;
     this.volumeLogger = new VolumeLogger(audioManager);
     this.useLowLatency = useLowLatency;
     Logging.d(TAG, "ctor" + WebRtcAudioUtils.getThreadInfo());
@@ -225,7 +239,6 @@ class WebRtcAudioTrack {
       reportWebRtcAudioTrackInitError("AudioTrack.getMinBufferSize returns an invalid value.");
       return -1;
     }
-
     // Don't use low-latency mode when a bufferSizeFactor > 1 is used. When bufferSizeFactor > 1
     // we want to use a larger buffer to prevent underruns. However, low-latency mode would
     // decrease the buffer size, which makes the bufferSizeFactor have no effect.

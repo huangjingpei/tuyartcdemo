@@ -7,42 +7,7 @@
     android:layout_marginRight="8dp"
     android:orientation="vertical">
 
-    <CheckBox
-        android:id="@+id/muteAudio_chkbox"
-        android:layout_width="48dp"
-        android:layout_height="30dp"
-        android:layout_alignParentTop="true"
-        />
-    <TextView
-        android:id="@+id/muteAudio_tv"
-        android:text="禁止音频"
-        android:textSize="8sp"
 
-        android:visibility="visible"
-        android:layout_width="48dp"
-        android:layout_height="30dp"
-        android:layout_toRightOf="@+id/muteAudio_chkbox"
-        android:layout_alignParentTop="true"
-        android:layout_marginTop="10dp"
-        />
-    <CheckBox
-        android:id="@+id/muteVideo_chkbox"
-        android:layout_width="48dp"
-        android:layout_height="30dp"
-        android:layout_toRightOf="@+id/muteAudio_tv"
-        android:layout_alignParentTop="true"
-        />
-    <TextView
-        android:id="@+id/muteVideo_tv"
-        android:text="禁止视频"
-        android:textSize="8sp"
-
-        android:visibility="visible"
-        android:layout_width="48dp"
-        android:layout_height="30dp"
-        android:layout_toRightOf="@+id/muteVideo_chkbox"
-        android:layout_marginTop="10dp"
-        />
 
 
     <!--    <Button-->

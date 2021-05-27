@@ -4,6 +4,8 @@ import android.content.Context;
 import android.os.Environment;
 import android.os.ParcelFileDescriptor;
 import androidx.annotation.Nullable;
+
+import android.provider.MediaStore;
 import android.util.Log;
 import java.io.File;
 import java.io.IOException;
@@ -164,6 +166,9 @@ public class TuyaRTCClient {
     @Nullable
     private DataChannel dataChannel;
     private final boolean dataChannelEnabled;
+    private final Object object = new Object();
+    private boolean remoteAudioMuted;
+    private boolean remoteVideoMuted;
 
 
     /**
@@ -213,6 +218,7 @@ public class TuyaRTCClient {
         public final boolean disableBuiltInNS;
         public final boolean disableWebRtcAGCAndHPF;
         public final boolean enableRtcEventLog;
+
         private final TuyaRTCClient.DataChannelParameters dataChannelParameters;
 
         public PeerConnectionParameters(boolean videoCallEnabled, boolean loopback, boolean tracing,
@@ -423,10 +429,10 @@ public class TuyaRTCClient {
         }
         // Create SDP constraints.
         sdpMediaConstraints = new MediaConstraints();
-//        sdpMediaConstraints.mandatory.add(
-//                new MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"));
-//        sdpMediaConstraints.mandatory.add(new MediaConstraints.KeyValuePair(
-//                "OfferToReceiveVideo", Boolean.toString(isVideoCallEnabled())));
+        sdpMediaConstraints.mandatory.add(
+                new MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"));
+        sdpMediaConstraints.mandatory.add(new MediaConstraints.KeyValuePair(
+                "OfferToReceiveVideo", Boolean.toString(isVideoCallEnabled())));
     }
 
     private void createPeerConnectionInternal() {
@@ -471,20 +477,22 @@ public class TuyaRTCClient {
         Logging.enableLogToDebugOutput(Logging.Severity.LS_INFO);
 
         List<String> mediaStreamLabels = Collections.singletonList("ARDAMS");
+        peerConnection.addTrack(createAudioTrack(), mediaStreamLabels);
+
         if (isVideoCallEnabled()) {
             peerConnection.addTrack(createVideoTrack(videoCapturer), mediaStreamLabels);
             // We can add the renderers right away because we don't need to wait for an
             // answer to get the remote track.
-            remoteVideoTrack = getRemoteVideoTrackWithPlanB();
-            remoteVideoTrack.setEnabled(renderVideo);
-            Log.e(TAG, "HUANGJINGPEI begine");
-            for (VideoSink remoteSink : remoteSinks) {
-                remoteVideoTrack.addSink(remoteSink);
+            if (rtcConfig.sdpSemantics == PeerConnection.SdpSemantics.PLAN_B) {
+                remoteVideoTrack = getRemoteVideoTrackWithPlanB();
+            } else {
+                remoteVideoTrack = getRemoteVideoTrack();
             }
-            Log.e(TAG, "HUANGJINGPEI end");
-
+            remoteVideoTrack.setEnabled(renderVideo);
+            for (VideoSink remoteSink : remoteSinks) {
+                //remoteVideoTrack.addSink(remoteSink);
+            }
         }
-        peerConnection.addTrack(createAudioTrack(), mediaStreamLabels);
         if (isVideoCallEnabled()) {
             findVideoSender();
         }
@@ -611,8 +619,13 @@ public class TuyaRTCClient {
     public void setAudioEnabled(final boolean enable) {
         executor.execute(() -> {
             enableAudio = enable;
-            if (localAudioTrack != null) {
-                localAudioTrack.setEnabled(enableAudio);
+            for (RtpReceiver receiver : peerConnection.getReceivers()) {
+                if (receiver.track() != null) {
+                    String trackType = receiver.track().kind();
+                    if (trackType.equals("audio")) {
+                        receiver.track().setEnabled(enable);
+                    }
+                }
             }
         });
     }
@@ -620,22 +633,103 @@ public class TuyaRTCClient {
 
     public void setVideoEnabled(final boolean enable) {
         executor.execute(() -> {
-            renderVideo = enable;
-            if (localVideoTrack != null) {
-                localVideoTrack.setEnabled(renderVideo);
-            }
-            if (remoteVideoTrack != null) {
-                remoteVideoTrack.setEnabled(renderVideo);
+            for (RtpReceiver receiver : peerConnection.getReceivers()) {
+                if (receiver.track() != null) {
+                    String trackType = receiver.track().kind();
+                    if (trackType.equals("video")) {
+                        receiver.track().setEnabled(enable);
+                    }
+                }
             }
         });
     }
 
     public boolean getAudioEnable() {
-        return  enableAudio;
+        synchronized (object) {
+            executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    for (RtpReceiver receiver : peerConnection.getReceivers()) {
+                        if (receiver.track() != null) {
+                            String trackType = receiver.track().kind();
+                            remoteAudioMuted = receiver.track().enabled();
+                            if (trackType.equals("audio")) {
+                                object.notify();
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        synchronized (object) {
+            try {
+                object.wait(1000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+        return remoteAudioMuted;
     }
 
     public boolean getVideoEnable() {
-        return renderVideo;
+        synchronized (object) {
+            executor.execute(new Runnable() {
+                @Override
+                public void run() {
+                    for (RtpReceiver receiver : peerConnection.getReceivers()) {
+                        if (receiver.track() != null) {
+                            String trackType = receiver.track().kind();
+                            remoteVideoMuted = receiver.track().enabled();
+                            if (trackType.equals("video")) {
+                                object.notify();
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        synchronized (object) {
+            try {
+                object.wait(1000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+        return remoteVideoMuted;
+    }
+
+    public boolean startRecord(VideoSink sink) {
+        executor.execute(() -> {
+            if (peerConnection == null) {
+                return;
+            }
+            for (RtpReceiver receiver : peerConnection.getReceivers()) {
+                if (receiver.track() != null) {
+                    String trackType = receiver.track().kind();
+                    if (trackType.equals("video")) {
+                        ((VideoTrack)receiver.track()).addSink(sink);
+                    }
+                }
+            }
+        });
+        return true;
+    }
+
+    public boolean stopRecord(VideoSink sink) {
+        executor.execute(() -> {
+            if (peerConnection == null) {
+                return;
+            }
+            for (RtpReceiver receiver : peerConnection.getReceivers()) {
+                if (receiver.track() != null) {
+                    String trackType = receiver.track().kind();
+                    if (trackType.equals("video")) {
+                        ((VideoTrack)receiver.track()).removeSink(sink);
+                    }
+                }
+            }
+        });
+        return true;
     }
 
     public void createOffer() {
@@ -692,7 +786,7 @@ public class TuyaRTCClient {
                 sdp = preferCodec(sdp, AUDIO_CODEC_ISAC, true);
             }
             if (isVideoCallEnabled()) {
-                //sdp = preferCodec(sdp, "H264", false);
+                sdp = preferCodec(sdp, "H264", false);
             }
             if (peerConnectionParameters.audioStartBitrate > 0) {
                 sdp = setStartBitrate(
@@ -1086,7 +1180,15 @@ public class TuyaRTCClient {
         }
 
         @Override
-        public void onAddStream(final MediaStream stream) {}
+        public void onAddStream(final MediaStream stream) {
+            List<VideoTrack> tracks = stream.videoTracks;
+            for(VideoTrack track : tracks) {
+                for(VideoSink sink: remoteSinks) {
+                    track.addSink(sink);
+                }
+            }
+
+        }
 
         @Override
         public void onRemoveStream(final MediaStream stream) {}
@@ -1131,7 +1233,9 @@ public class TuyaRTCClient {
         }
 
         @Override
-        public void onAddTrack(final RtpReceiver receiver, final MediaStream[] mediaStreams) {}
+        public void onAddTrack(final RtpReceiver receiver, final MediaStream[] mediaStreams) {
+
+        }
     }
 
     // Implementation detail: handle offer creation/signaling and answer setting,
@@ -1148,7 +1252,7 @@ public class TuyaRTCClient {
                 sdp = preferCodec(sdp, AUDIO_CODEC_ISAC, true);
             }
             if (isVideoCallEnabled()) {
-                //sdp = preferCodec(sdp, "H264", false);
+                sdp = preferCodec(sdp, "H264", false);
             }
             final SessionDescription newDesc = new SessionDescription(desc.type, sdp);
             localDescription = newDesc;
